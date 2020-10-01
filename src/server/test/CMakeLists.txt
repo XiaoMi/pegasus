@@ -10,6 +10,7 @@ set(MY_PROJ_SRC "../pegasus_server_impl.cpp"
                 "../pegasus_mutation_duplicator.cpp"
                 "../hotspot_partition_calculator.cpp"
                 "../meta_store.cpp"
+                "../pegasus_store_configs.cpp"
 )
 
 set(MY_SRC_SEARCH_MODE "GLOB")

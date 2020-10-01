@@ -12,6 +12,7 @@
 #include "meta_store.h"
 #include "pegasus_event_listener.h"
 #include "pegasus_server_write.h"
+#include "pegasus_store_configs.h"
 
 namespace pegasus {
 namespace server {
@@ -42,63 +43,18 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
     _primary_address = dsn::rpc_address(dsn_primary_address()).to_string();
     _gpid = get_gpid();
 
-    _verbose_log = dsn_config_get_value_bool("pegasus.server",
-                                             "rocksdb_verbose_log",
-                                             false,
-                                             "whether to print verbose log for debugging");
-    _slow_query_threshold_ns_in_config = dsn_config_get_value_uint64(
-        "pegasus.server",
-        "rocksdb_slow_query_threshold_ns",
-        100000000,
-        "get/multi-get operation duration exceed this threshold will be logged");
-    _slow_query_threshold_ns = _slow_query_threshold_ns_in_config;
-    dassert(_slow_query_threshold_ns > 0, "slow query threshold must be greater than 0");
-    _abnormal_get_size_threshold = dsn_config_get_value_uint64(
-        "pegasus.server",
-        "rocksdb_abnormal_get_size_threshold",
-        1000000,
-        "get operation value size exceed this threshold will be logged, 0 means no check");
-    _abnormal_multi_get_size_threshold =
-        dsn_config_get_value_uint64("pegasus.server",
-                                    "rocksdb_abnormal_multi_get_size_threshold",
-                                    10000000,
-                                    "multi-get operation total key-value size exceed this "
-                                    "threshold will be logged, 0 means no check");
-    _abnormal_multi_get_iterate_count_threshold = dsn_config_get_value_uint64(
-        "pegasus.server",
-        "rocksdb_abnormal_multi_get_iterate_count_threshold",
-        1000,
-        "multi-get operation iterate count exceed this threshold will be logged, 0 means no check");
+    _verbose_log = FLAGS_rocksdb_verbose_log;
+    _slow_query_threshold_ns = FLAGS_rocksdb_slow_query_threshold_ns;
+    _abnormal_get_size_threshold = FLAGS_rocksdb_abnormal_get_size_threshold;
+    _abnormal_multi_get_size_threshold = FLAGS_rocksdb_abnormal_multi_get_size_threshold;
+    _abnormal_multi_get_iterate_count_threshold =
+        FLAGS_rocksdb_abnormal_multi_get_iterate_count_threshold;
 
-    _rng_rd_opts.multi_get_max_iteration_count = (uint32_t)dsn_config_get_value_uint64(
-        "pegasus.server",
-        "rocksdb_multi_get_max_iteration_count",
-        3000,
-        "max iteration count for each range read for multi-get operation, if "
-        "exceed this threshold,"
-        "iterator will be stopped");
-
-    _rng_rd_opts.multi_get_max_iteration_size =
-        dsn_config_get_value_uint64("pegasus.server",
-                                    "rocksdb_multi_get_max_iteration_size",
-                                    30 << 20,
-                                    "multi-get operation total key-value size exceed "
-                                    "this threshold will stop iterating rocksdb, 0 means no check");
-
-    _rng_rd_opts.rocksdb_max_iteration_count =
-        (uint32_t)dsn_config_get_value_uint64("pegasus.server",
-                                              "rocksdb_max_iteration_count",
-                                              1000,
-                                              "max iteration count for each range "
-                                              "read, if exceed this threshold, "
-                                              "iterator will be stopped");
-
-    _rng_rd_opts.rocksdb_iteration_threshold_time_ms_in_config = dsn_config_get_value_uint64(
-        "pegasus.server",
-        "rocksdb_iteration_threshold_time_ms",
-        30000,
-        "max duration for handling one pegasus scan request(sortkey_count/multiget/scan) if exceed "
-        "this threshold, iterator will be stopped, 0 means no check");
+    _rng_rd_opts.multi_get_max_iteration_count = FLAGS_rocksdb_multi_get_max_iteration_size;
+    _rng_rd_opts.multi_get_max_iteration_size = FLAGS_rocksdb_multi_get_max_iteration_size;
+    _rng_rd_opts.rocksdb_max_iteration_count = FLAGS_rocksdb_max_iteration_count;
+    _rng_rd_opts.rocksdb_iteration_threshold_time_ms_in_config =
+        FLAGS_rocksdb_iteration_threshold_time_ms;
     _rng_rd_opts.rocksdb_iteration_threshold_time_ms =
         _rng_rd_opts.rocksdb_iteration_threshold_time_ms_in_config;
 
@@ -108,26 +64,11 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
     // and data in data CF.
     _db_opts.atomic_flush = true;
 
-    _db_opts.use_direct_reads = dsn_config_get_value_bool(
-        "pegasus.server", "rocksdb_use_direct_reads", false, "rocksdb options.use_direct_reads");
-
+    _db_opts.use_direct_reads = FLAGS_rocksdb_use_direct_reads;
     _db_opts.use_direct_io_for_flush_and_compaction =
-        dsn_config_get_value_bool("pegasus.server",
-                                  "rocksdb_use_direct_io_for_flush_and_compaction",
-                                  false,
-                                  "rocksdb options.use_direct_io_for_flush_and_compaction");
-
-    _db_opts.compaction_readahead_size =
-        dsn_config_get_value_uint64("pegasus.server",
-                                    "rocksdb_compaction_readahead_size",
-                                    2 * 1024 * 1024,
-                                    "rocksdb options.compaction_readahead_size");
-
-    _db_opts.writable_file_max_buffer_size =
-        dsn_config_get_value_uint64("pegasus.server",
-                                    "rocksdb_writable_file_max_buffer_size",
-                                    1024 * 1024,
-                                    "rocksdb options.writable_file_max_buffer_size");
+        FLAGS_rocksdb_use_direct_io_for_flush_and_compaction;
+    _db_opts.compaction_readahead_size = FLAGS_rocksdb_compaction_readahead_size;
+    _db_opts.writable_file_max_buffer_size = FLAGS_rocksdb_writable_file_max_buffer_size;
 
     _statistics = rocksdb::CreateDBStatistics();
     _statistics->set_stats_level(rocksdb::kExceptDetailedTimers);
@@ -136,88 +77,28 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
     _db_opts.listeners.emplace_back(new pegasus_event_listener(this));
 
     // flush threads are shared among all rocksdb instances in one process.
-    _db_opts.max_background_flushes =
-        (int)dsn_config_get_value_int64("pegasus.server",
-                                        "rocksdb_max_background_flushes",
-                                        4,
-                                        "rocksdb options.max_background_flushes");
+    _db_opts.max_background_flushes = FLAGS_rocksdb_max_background_flushes;
 
     // compaction threads are shared among all rocksdb instances in one process.
-    _db_opts.max_background_compactions =
-        (int)dsn_config_get_value_int64("pegasus.server",
-                                        "rocksdb_max_background_compactions",
-                                        12,
-                                        "rocksdb options.max_background_compactions");
+    _db_opts.max_background_compactions = FLAGS_rocksdb_max_background_compactions;
 
     // init rocksdb::ColumnFamilyOptions for data column family
-    _data_cf_opts.write_buffer_size =
-        (size_t)dsn_config_get_value_uint64("pegasus.server",
-                                            "rocksdb_write_buffer_size",
-                                            64 * 1024 * 1024,
-                                            "rocksdb options.write_buffer_size");
-
-    _data_cf_opts.max_write_buffer_number =
-        (int)dsn_config_get_value_int64("pegasus.server",
-                                        "rocksdb_max_write_buffer_number",
-                                        3,
-                                        "rocksdb options.max_write_buffer_number");
-
-    _data_cf_opts.num_levels = (int)dsn_config_get_value_int64(
-        "pegasus.server", "rocksdb_num_levels", 6, "rocksdb options.num_levels");
-
-    _data_cf_opts.target_file_size_base =
-        dsn_config_get_value_uint64("pegasus.server",
-                                    "rocksdb_target_file_size_base",
-                                    64 * 1024 * 1024,
-                                    "rocksdb options.target_file_size_base");
-
-    _data_cf_opts.target_file_size_multiplier =
-        (int)dsn_config_get_value_int64("pegasus.server",
-                                        "rocksdb_target_file_size_multiplier",
-                                        1,
-                                        "rocksdb options.target_file_size_multiplier");
-
-    _data_cf_opts.max_bytes_for_level_base =
-        dsn_config_get_value_uint64("pegasus.server",
-                                    "rocksdb_max_bytes_for_level_base",
-                                    10 * 64 * 1024 * 1024,
-                                    "rocksdb options.max_bytes_for_level_base");
-
-    _data_cf_opts.max_bytes_for_level_multiplier =
-        dsn_config_get_value_double("pegasus.server",
-                                    "rocksdb_max_bytes_for_level_multiplier",
-                                    10,
-                                    "rocksdb options.rocksdb_max_bytes_for_level_multiplier");
+    _data_cf_opts.write_buffer_size = FLAGS_rocksdb_write_buffer_size;
+    _data_cf_opts.max_write_buffer_number = FLAGS_rocksdb_max_write_buffer_number;
+    _data_cf_opts.num_levels = FLAGS_rocksdb_num_levels;
+    _data_cf_opts.target_file_size_base = FLAGS_rocksdb_target_file_size_base;
+    _data_cf_opts.target_file_size_multiplier = FLAGS_rocksdb_target_file_size_multiplier;
+    _data_cf_opts.max_bytes_for_level_base = FLAGS_rocksdb_max_bytes_for_level_base;
+    _data_cf_opts.max_bytes_for_level_multiplier = FLAGS_rocksdb_max_bytes_for_level_multiplier;
 
     // we need set max_compaction_bytes definitely because set_usage_scenario() depends on it.
     _data_cf_opts.max_compaction_bytes = _data_cf_opts.target_file_size_base * 25;
 
     _data_cf_opts.level0_file_num_compaction_trigger =
-        (int)dsn_config_get_value_int64("pegasus.server",
-                                        "rocksdb_level0_file_num_compaction_trigger",
-                                        4,
-                                        "rocksdb options.level0_file_num_compaction_trigger");
-
-    _data_cf_opts.level0_slowdown_writes_trigger = (int)dsn_config_get_value_int64(
-        "pegasus.server",
-        "rocksdb_level0_slowdown_writes_trigger",
-        30,
-        "rocksdb options.level0_slowdown_writes_trigger, default 30");
-
-    _data_cf_opts.level0_stop_writes_trigger =
-        (int)dsn_config_get_value_int64("pegasus.server",
-                                        "rocksdb_level0_stop_writes_trigger",
-                                        60,
-                                        "rocksdb options.level0_stop_writes_trigger");
-
-    std::string compression_str = dsn_config_get_value_string(
-        "pegasus.server",
-        "rocksdb_compression_type",
-        "lz4",
-        "rocksdb options.compression. Available config: '[none|snappy|zstd|lz4]' "
-        "for all level 2 and higher levels, and "
-        "'per_level:[none|snappy|zstd|lz4],[none|snappy|zstd|lz4],...' for each level 0,1,..., the "
-        "last compression type will be used for levels not specified in the list.");
+        FLAGS_rocksdb_level0_file_num_compaction_trigger;
+    _data_cf_opts.level0_slowdown_writes_trigger = FLAGS_rocksdb_level0_slowdown_writes_trigger;
+    _data_cf_opts.level0_stop_writes_trigger = FLAGS_rocksdb_level0_stop_writes_trigger;
+    std::string compression_str = FLAGS_rocksdb_compression_type;
     dassert(parse_compression_types(compression_str, _data_cf_opts.compression_per_level),
             "parse rocksdb_compression_type failed.");
 
@@ -229,10 +110,7 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
             "parse rocksdb_compression_type failed.");
 
     rocksdb::BlockBasedTableOptions tbl_opts;
-    if (dsn_config_get_value_bool("pegasus.server",
-                                  "rocksdb_disable_table_block_cache",
-                                  false,
-                                  "rocksdb tbl_opts.no_block_cache")) {
+    if (FLAGS_rocksdb_disable_table_block_cache) {
         tbl_opts.no_block_cache = true;
         tbl_opts.block_restart_interval = 4;
     } else {
@@ -241,19 +119,9 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
         // algorithm used by the block cache object can be more efficient in this way.
         static std::once_flag flag;
         std::call_once(flag, [&]() {
-            uint64_t capacity = dsn_config_get_value_uint64(
-                "pegasus.server",
-                "rocksdb_block_cache_capacity",
-                10 * 1024 * 1024 * 1024ULL,
-                "block cache capacity for one pegasus server, shared by all rocksdb instances");
-
+            uint64_t capacity = FLAGS_rocksdb_block_cache_capacity;
             // block cache num shard bits, default -1(auto)
-            int num_shard_bits = (int)dsn_config_get_value_int64(
-                "pegasus.server",
-                "rocksdb_block_cache_num_shard_bits",
-                -1,
-                "block cache will be sharded into 2^num_shard_bits shards");
-
+            int num_shard_bits = FLAGS_rocksdb_block_cache_num_shard_bits;
             // init block cache
             _s_block_cache = rocksdb::NewLRUCache(capacity, num_shard_bits);
         });
@@ -279,8 +147,7 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
     }
 
     // Bloom filter configurations.
-    bool disable_bloom_filter = dsn_config_get_value_bool(
-        "pegasus.server", "rocksdb_disable_bloom_filter", false, "Whether to disable bloom filter");
+    bool disable_bloom_filter = FLAGS_rocksdb_disable_bloom_filter;
     if (!disable_bloom_filter) {
         // average bits allocated per key in bloom filter.
         // bits_per_key    |           false positive rate
@@ -294,11 +161,7 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
         //      50                0.225453             ~0.00003
         // Recommend using no more than three decimal digits after the decimal point, as in 6.667.
         // More details: https://github.com/facebook/rocksdb/wiki/RocksDB-Bloom-Filter
-        double bits_per_key =
-            dsn_config_get_value_double("pegasus.server",
-                                        "rocksdb_bloom_filter_bits_per_key",
-                                        10,
-                                        "average bits allocated per key in bloom filter");
+        double bits_per_key = FLAGS_rocksdb_bloom_filter_bits_per_key;
         // COMPATIBILITY ATTENTION:
         // Although old releases would see the new structure as corrupt filter data and read the
         // table as if there's no filter, we've decided only to enable the new Bloom filter with new
@@ -306,27 +169,11 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
         // option for early opt-in.
         // Reference from rocksdb commit:
         // https://github.com/facebook/rocksdb/commit/f059c7d9b96300091e07429a60f4ad55dac84859
-        int format_version =
-            (int)dsn_config_get_value_int64("pegasus.server",
-                                            "rocksdb_format_version",
-                                            2,
-                                            "block based table data format version, "
-                                            "only 2 and 5 is supported in Pegasus. "
-                                            "2 is the old version, 5 is the new "
-                                            "version supported since rocksdb "
-                                            "v6.6.4");
-        dassert(format_version == 2 || format_version == 5,
-                "[pegasus.server]rocksdb_format_version should be either '2' or '5'.");
+        int format_version = FLAGS_rocksdb_format_version;
         tbl_opts.format_version = format_version;
         tbl_opts.filter_policy.reset(rocksdb::NewBloomFilterPolicy(bits_per_key, false));
 
-        std::string filter_type =
-            dsn_config_get_value_string("pegasus.server",
-                                        "rocksdb_filter_type",
-                                        "prefix",
-                                        "Bloom filter type, should be either 'common' or 'prefix'");
-        dassert(filter_type == "common" || filter_type == "prefix",
-                "[pegasus.server]rocksdb_filter_type should be either 'common' or 'prefix'.");
+        std::string filter_type = FLAGS_rocksdb_filter_type;
         if (filter_type == "prefix") {
             _data_cf_opts.prefix_extractor.reset(new HashkeyTransform());
             _data_cf_opts.memtable_prefix_bloom_size_ratio = 0.1;
@@ -342,18 +189,12 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
     _data_cf_opts.compaction_filter_factory = _key_ttl_compaction_filter_factory;
 
     // get the checkpoint reserve options.
-    _checkpoint_reserve_min_count_in_config = (uint32_t)dsn_config_get_value_uint64(
-        "pegasus.server", "checkpoint_reserve_min_count", 2, "checkpoint_reserve_min_count");
+    _checkpoint_reserve_min_count_in_config = FLAGS_checkpoint_reserve_min_count;
     _checkpoint_reserve_min_count = _checkpoint_reserve_min_count_in_config;
-    _checkpoint_reserve_time_seconds_in_config =
-        (uint32_t)dsn_config_get_value_uint64("pegasus.server",
-                                              "checkpoint_reserve_time_seconds",
-                                              1800,
-                                              "checkpoint_reserve_time_seconds, 0 means no check");
+    _checkpoint_reserve_time_seconds_in_config = FLAGS_checkpoint_reserve_time_seconds;
     _checkpoint_reserve_time_seconds = _checkpoint_reserve_time_seconds_in_config;
 
-    _update_rdb_stat_interval = std::chrono::seconds(dsn_config_get_value_uint64(
-        "pegasus.server", "update_rdb_stat_interval", 600, "update_rdb_stat_interval, in seconds"));
+    _update_rdb_stat_interval = std::chrono::seconds(FLAGS_update_rdb_stat_interval);
 
     // TODO: move the qps/latency counters and it's statistics to replication_app_base layer
     std::string str_gpid = _gpid.to_string();
