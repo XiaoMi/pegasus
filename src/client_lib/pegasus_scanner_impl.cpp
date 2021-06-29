@@ -215,6 +215,7 @@ void pegasus_client_impl::pegasus_scanner_impl::_start_scan()
         _options.sort_key_filter_pattern.data(), 0, _options.sort_key_filter_pattern.size());
     req.no_value = _options.no_value;
     req.__set_validate_partition_hash(_validate_partition_hash);
+    req.__set_count_only(_options.count_only);
 
     dassert(!_rpc_started, "");
     _rpc_started = true;

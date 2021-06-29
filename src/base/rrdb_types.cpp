@@ -3679,6 +3679,12 @@ void get_scanner_request::__set_validate_partition_hash(const bool val)
     __isset.validate_partition_hash = true;
 }
 
+void get_scanner_request::__set_count_only(const bool val)
+{
+    this->count_only = val;
+    __isset.count_only = true;
+}
+
 uint32_t get_scanner_request::read(::apache::thrift::protocol::TProtocol *iprot)
 {
 
@@ -3790,6 +3796,14 @@ uint32_t get_scanner_request::read(::apache::thrift::protocol::TProtocol *iprot)
                 xfer += iprot->skip(ftype);
             }
             break;
+        case 12:
+            if (ftype == ::apache::thrift::protocol::T_BOOL) {
+                xfer += iprot->readBool(this->count_only);
+                this->__isset.count_only = true;
+            } else {
+                xfer += iprot->skip(ftype);
+            }
+            break;
         default:
             xfer += iprot->skip(ftype);
             break;
@@ -3856,6 +3870,11 @@ uint32_t get_scanner_request::write(::apache::thrift::protocol::TProtocol *oprot
         xfer += oprot->writeBool(this->validate_partition_hash);
         xfer += oprot->writeFieldEnd();
     }
+    if (this->__isset.count_only) {
+        xfer += oprot->writeFieldBegin("count_only", ::apache::thrift::protocol::T_BOOL, 12);
+        xfer += oprot->writeBool(this->count_only);
+        xfer += oprot->writeFieldEnd();
+    }
     xfer += oprot->writeFieldStop();
     xfer += oprot->writeStructEnd();
     return xfer;
@@ -3875,6 +3894,7 @@ void swap(get_scanner_request &a, get_scanner_request &b)
     swap(a.sort_key_filter_type, b.sort_key_filter_type);
     swap(a.sort_key_filter_pattern, b.sort_key_filter_pattern);
     swap(a.validate_partition_hash, b.validate_partition_hash);
+    swap(a.count_only, b.count_only);
     swap(a.__isset, b.__isset);
 }
 
@@ -3891,6 +3911,7 @@ get_scanner_request::get_scanner_request(const get_scanner_request &other108)
     sort_key_filter_type = other108.sort_key_filter_type;
     sort_key_filter_pattern = other108.sort_key_filter_pattern;
     validate_partition_hash = other108.validate_partition_hash;
+    count_only = other108.count_only;
     __isset = other108.__isset;
 }
 get_scanner_request::get_scanner_request(get_scanner_request &&other109)
@@ -3906,6 +3927,7 @@ get_scanner_request::get_scanner_request(get_scanner_request &&other109)
     sort_key_filter_type = std::move(other109.sort_key_filter_type);
     sort_key_filter_pattern = std::move(other109.sort_key_filter_pattern);
     validate_partition_hash = std::move(other109.validate_partition_hash);
+    count_only = std::move(other109.count_only);
     __isset = std::move(other109.__isset);
 }
 get_scanner_request &get_scanner_request::operator=(const get_scanner_request &other110)
@@ -3921,6 +3943,7 @@ get_scanner_request &get_scanner_request::operator=(const get_scanner_request &o
     sort_key_filter_type = other110.sort_key_filter_type;
     sort_key_filter_pattern = other110.sort_key_filter_pattern;
     validate_partition_hash = other110.validate_partition_hash;
+    count_only = other110.count_only;
     __isset = other110.__isset;
     return *this;
 }
@@ -3937,6 +3960,7 @@ get_scanner_request &get_scanner_request::operator=(get_scanner_request &&other1
     sort_key_filter_type = std::move(other111.sort_key_filter_type);
     sort_key_filter_pattern = std::move(other111.sort_key_filter_pattern);
     validate_partition_hash = std::move(other111.validate_partition_hash);
+    count_only = std::move(other111.count_only);
     __isset = std::move(other111.__isset);
     return *this;
 }
@@ -3967,6 +3991,9 @@ void get_scanner_request::printTo(std::ostream &out) const
         << "validate_partition_hash=";
     (__isset.validate_partition_hash ? (out << to_string(validate_partition_hash))
                                      : (out << "<null>"));
+    out << ", "
+        << "count_only=";
+    (__isset.count_only ? (out << to_string(count_only)) : (out << "<null>"));
     out << ")";
 }
 
@@ -4620,5 +4647,6 @@ void duplicate_response::printTo(std::ostream &out) const
     (__isset.error_hint ? (out << to_string(error_hint)) : (out << "<null>"));
     out << ")";
 }
-}
-} // namespace
+
+} // namespace apps
+} // namespace dsn

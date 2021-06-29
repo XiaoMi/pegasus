@@ -2111,6 +2111,7 @@ bool count_data(command_executor *e, shell_context *sc, arguments args)
                                            {"stat_size", no_argument, 0, 'a'},
                                            {"top_count", required_argument, 0, 'n'},
                                            {"run_seconds", required_argument, 0, 'r'},
+                                           {"count_only", required_argument, 0, 'f'},
                                            {0, 0, 0, 0}};
 
     // "count_data" usually need scan all online records to get precise result, which may affect
@@ -2133,14 +2134,16 @@ bool count_data(command_executor *e, shell_context *sc, arguments args)
     bool stat_size = false;
     int top_count = 0;
     int run_seconds = 0;
+    bool count_only = false;
     pegasus::pegasus_client::scan_options options;
+    uint64_t req_time = dsn_now_ms();
 
     optind = 0;
     while (true) {
         int option_index = 0;
         int c;
         c = getopt_long(
-            args.argc, args.argv, "cp:b:t:h:x:s:y:v:z:dan:r:", long_options, &option_index);
+            args.argc, args.argv, "cp:b:t:h:x:s:y:v:z:dan:r:f", long_options, &option_index);
         if (c == -1)
             break;
         // input any valid parameter means you want to get precise count by scanning.
@@ -2221,6 +2224,9 @@ bool count_data(command_executor *e, shell_context *sc, arguments args)
                 fprintf(stderr, "parse %s as run_seconds failed\n", optarg);
                 return false;
             }
+            break;
+        case 'f':
+            count_only = true;
             break;
         default:
             return false;
@@ -2312,6 +2318,7 @@ bool count_data(command_executor *e, shell_context *sc, arguments args)
     fprintf(stderr, "INFO: stat_size = %s\n", stat_size ? "true" : "false");
     fprintf(stderr, "INFO: top_count = %d\n", top_count);
     fprintf(stderr, "INFO: run_seconds = %d\n", run_seconds);
+    fprintf(stderr, "INFO: count_only = %d\n", count_only);
 
     std::vector<pegasus::pegasus_client::pegasus_scanner *> raw_scanners;
     options.timeout_ms = timeout_ms;
@@ -2326,6 +2333,8 @@ bool count_data(command_executor *e, shell_context *sc, arguments args)
         options.no_value = false;
     else
         options.no_value = true;
+    options.batch_size = max_batch_count;
+    options.count_only = count_only;
     int ret = sc->pg_client->get_unordered_scanners(INT_MAX, options, raw_scanners);
     if (ret != pegasus::PERR_OK) {
         fprintf(
@@ -2370,6 +2379,7 @@ bool count_data(command_executor *e, shell_context *sc, arguments args)
                                                            diff_hash_key);
         context->set_sort_key_filter(sort_key_filter_type, sort_key_filter_pattern);
         context->set_value_filter(value_filter_type, value_filter_pattern);
+        context->count_only = count_only;
         contexts.emplace_back(context);
         dsn::tasking::enqueue(LPC_SCAN_DATA, nullptr, std::bind(scan_data_next, context));
     }

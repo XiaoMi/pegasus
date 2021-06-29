@@ -253,6 +253,7 @@ struct get_scanner_request
     9:filter_type  sort_key_filter_type;
     10:dsn.blob    sort_key_filter_pattern;
     11:optional bool    validate_partition_hash;
+    12:optional bool    count_only;
 }
 
 struct scan_request

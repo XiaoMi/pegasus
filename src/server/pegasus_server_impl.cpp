@@ -26,6 +26,7 @@
 #include <rocksdb/utilities/options_util.h>
 #include <dsn/utility/chrono_literals.h>
 #include <dsn/utility/utils.h>
+#include <dsn/utility/blob.h>
 #include <dsn/utility/filesystem.h>
 #include <dsn/utility/string_conv.h>
 #include <dsn/dist/fmt_logging.h>
@@ -1004,6 +1005,7 @@ void pegasus_server_impl::on_get_scanner(get_scanner_rpc rpc)
     uint64_t expire_count = 0;
     uint64_t filter_count = 0;
     int32_t count = 0;
+    bool count_only = request.__isset.count_only ? request.count_only : false;
 
     uint32_t request_batch_size = request.batch_size > 0 ? request.batch_size : INT_MAX;
     uint32_t batch_count = std::min(request_batch_size, _rng_rd_opts.rocksdb_max_iteration_count);
@@ -1041,7 +1043,8 @@ void pegasus_server_impl::on_get_scanner(get_scanner_rpc rpc)
             request.sort_key_filter_pattern,
             epoch_now,
             request.no_value,
-            request.__isset.validate_partition_hash ? request.validate_partition_hash : true);
+            request.__isset.validate_partition_hash ? request.validate_partition_hash : true,
+            count_only);
         switch (state) {
         case range_iteration_state::kNormal:
             count++;
@@ -1068,6 +1071,10 @@ void pegasus_server_impl::on_get_scanner(get_scanner_rpc rpc)
     // check iteration time whether exceed limit
     if (!complete) {
         limiter->time_check_after_incomplete_scan();
+    }
+
+    if (count_only) {
+        create_kv_for_count_only(resp.kvs, it.get(), count);
     }
 
     resp.error = it->status().code();
@@ -1116,7 +1123,8 @@ void pegasus_server_impl::on_get_scanner(get_scanner_rpc rpc)
                         request.sort_key_filter_pattern.length()),
             batch_count,
             request.no_value,
-            request.__isset.validate_partition_hash ? request.validate_partition_hash : true));
+            request.__isset.validate_partition_hash ? request.validate_partition_hash : true,
+            count_only));
         int64_t handle = _context_cache.put(std::move(context));
         resp.context_id = handle;
         // if the context is used, it will be fetched and re-put into cache,
@@ -1166,6 +1174,7 @@ void pegasus_server_impl::on_scan(scan_rpc rpc)
         const ::dsn::blob &sort_key_filter_pattern = context->sort_key_filter_pattern;
         bool no_value = context->no_value;
         bool validate_hash = context->validate_partition_hash;
+        bool count_only = context->count_only;
         bool complete = false;
         uint32_t epoch_now = ::pegasus::utils::epoch_now();
         uint64_t expire_count = 0;
@@ -1198,7 +1207,8 @@ void pegasus_server_impl::on_scan(scan_rpc rpc)
                                                    sort_key_filter_pattern,
                                                    epoch_now,
                                                    no_value,
-                                                   validate_hash);
+                                                   validate_hash,
+                                                   count_only);
             switch (state) {
             case range_iteration_state::kNormal:
                 count++;
@@ -1225,6 +1235,10 @@ void pegasus_server_impl::on_scan(scan_rpc rpc)
         // check iteration time whether exceed limit
         if (!complete) {
             limiter->time_check_after_incomplete_scan();
+        }
+
+        if (count_only) {
+            create_kv_for_count_only(resp.kvs, it, count);
         }
 
         resp.error = it->status().code();
@@ -2089,7 +2103,8 @@ pegasus_server_impl::append_key_value_for_scan(std::vector<::dsn::apps::key_valu
                                                const ::dsn::blob &sort_key_filter_pattern,
                                                uint32_t epoch_now,
                                                bool no_value,
-                                               bool request_validate_hash)
+                                               bool request_validate_hash,
+                                               bool count_only)
 {
     if (check_if_record_expired(epoch_now, value)) {
         if (_verbose_log) {
@@ -2107,8 +2122,6 @@ pegasus_server_impl::append_key_value_for_scan(std::vector<::dsn::apps::key_valu
             return range_iteration_state::kHashInvalid;
         }
     }
-
-    ::dsn::apps::key_value kv;
 
     // extract raw key
     ::dsn::blob raw_key(key.data(), 0, key.size());
@@ -2131,17 +2144,21 @@ pegasus_server_impl::append_key_value_for_scan(std::vector<::dsn::apps::key_valu
             return range_iteration_state::kFiltered;
         }
     }
-    std::shared_ptr<char> key_buf(::dsn::utils::make_shared_array<char>(raw_key.length()));
-    ::memcpy(key_buf.get(), raw_key.data(), raw_key.length());
-    kv.key.assign(std::move(key_buf), 0, raw_key.length());
 
-    // extract value
-    if (!no_value) {
-        std::string value_buf(value.data(), value.size());
-        pegasus_extract_user_data(_pegasus_data_version, std::move(value_buf), kv.value);
+    if (!count_only) {
+        ::dsn::apps::key_value kv;
+        std::shared_ptr<char> key_buf(::dsn::utils::make_shared_array<char>(raw_key.length()));
+        ::memcpy(key_buf.get(), raw_key.data(), raw_key.length());
+        kv.key.assign(std::move(key_buf), 0, raw_key.length());
+
+        // extract value
+        if (!no_value) {
+            std::string value_buf(value.data(), value.size());
+            pegasus_extract_user_data(_pegasus_data_version, std::move(value_buf), kv.value);
+        }
+
+        kvs.emplace_back(std::move(kv));
     }
-
-    kvs.emplace_back(std::move(kv));
     return range_iteration_state::kNormal;
 }
 
@@ -2916,6 +2933,29 @@ void pegasus_server_impl::on_detect_hotkey(const dsn::replication::detect_hotkey
 }
 
 uint32_t pegasus_server_impl::query_data_version() const { return _pegasus_data_version; }
+
+void pegasus_server_impl::create_kv_for_count_only(std::vector<::dsn::apps::key_value> &kvs,
+                                                   rocksdb::Iterator *it,
+                                                   int64_t count)
+{
+    ::dsn::apps::key_value kv;
+    if (it->Valid()) {
+        const rocksdb::Slice &key = it->key();
+        ::dsn::blob raw_key(key.data(), 0, key.size());
+        std::shared_ptr<char> key_buf(::dsn::utils::make_shared_array<char>(raw_key.length()));
+        ::memcpy(key_buf.get(), raw_key.data(), raw_key.length());
+        kv.key.assign(std::move(key_buf), 0, raw_key.length());
+    } else {
+        ::dsn::blob tmp_key;
+        pegasus_generate_key(tmp_key, ::dsn::blob(), ::dsn::blob());
+        std::shared_ptr<char> key_buf(::dsn::utils::make_shared_array<char>(tmp_key.length()));
+        ::memcpy(key_buf.get(), tmp_key.data(), tmp_key.length());
+        kv.key.assign(std::move(key_buf), 0, tmp_key.length());
+    }
+    std::string strcnt = std::to_string(count);
+    kv.value = dsn::blob::create_from_bytes(strcnt.c_str(), strcnt.length());
+    kvs.emplace_back(std::move(kv));
+}
 
 } // namespace server
 } // namespace pegasus

@@ -416,6 +416,59 @@ TEST_F(scan, OVERALL)
     compare(data, base);
 }
 
+TEST_F(scan, OVERALL_COUNT_ONLY)
+{
+    ddebug("TEST OVERALL_SCAN_COUNT_ONLY...");
+    pegasus_client::scan_options options;
+    options.count_only = true;
+    std::vector<pegasus_client::pegasus_scanner *> scanners;
+    int ret = client->get_unordered_scanners(3, options, scanners);
+    ASSERT_EQ(0, ret) << "Error occurred when getting scanner. error="
+                      << client->get_error_string(ret);
+    ASSERT_LE(scanners.size(), 3);
+
+    std::string hash_key;
+    std::string sort_key;
+    std::string value;
+    int count = 0;
+    std::map<std::string, std::map<std::string, std::string>> data;
+    for (auto scanner : scanners) {
+        ASSERT_NE(nullptr, scanner);
+        while (PERR_OK == (ret = (scanner->next(hash_key, sort_key, value)))) {
+            count += atoi(value.c_str());
+        }
+        ASSERT_EQ(PERR_SCAN_COMPLETE, ret) << "Error occurred when scan. error="
+                                           << client->get_error_string(ret);
+        delete scanner;
+    }
+    ASSERT_EQ(10990, count);
+}
+
+TEST_F(scan, SCAN_COUNT_ONLY)
+{
+    ddebug("TESTING SCAN COUNT ONLY ....");
+    pegasus_client::scan_options options;
+    options.count_only = true;
+    std::map<std::string, std::string> data;
+    pegasus_client::pegasus_scanner *scanner = nullptr;
+    int ret = client->get_scanner(expected_hash_key, "", "", options, scanner);
+    ASSERT_EQ(PERR_OK, ret) << "Error occurred when getting scanner. error="
+                            << client->get_error_string(ret);
+    ASSERT_NE(nullptr, scanner);
+
+    std::string hash_key;
+    std::string sort_key;
+    std::string value;
+    int count = 0;
+    while (PERR_OK == (ret = (scanner->next(hash_key, sort_key, value)))) {
+        count += atoi(value.c_str());
+    }
+    delete scanner;
+    ASSERT_EQ(PERR_SCAN_COMPLETE, ret) << "Error occurred when scan. error="
+                                       << client->get_error_string(ret);
+    ASSERT_EQ(1000, count);
+}
+
 TEST_F(scan, ITERATION_TIME_LIMIT)
 {
     // update iteration threshold to 1ms

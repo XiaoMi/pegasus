@@ -1559,7 +1559,8 @@ typedef struct _get_scanner_request__isset
           hash_key_filter_pattern(false),
           sort_key_filter_type(false),
           sort_key_filter_pattern(false),
-          validate_partition_hash(false)
+          validate_partition_hash(false),
+          count_only(false)
     {
     }
     bool start_key : 1;
@@ -1573,6 +1574,7 @@ typedef struct _get_scanner_request__isset
     bool sort_key_filter_type : 1;
     bool sort_key_filter_pattern : 1;
     bool validate_partition_hash : 1;
+    bool count_only : 1;
 } _get_scanner_request__isset;
 
 class get_scanner_request
@@ -1589,7 +1591,8 @@ public:
           no_value(0),
           hash_key_filter_type((filter_type::type)0),
           sort_key_filter_type((filter_type::type)0),
-          validate_partition_hash(0)
+          validate_partition_hash(0),
+          count_only(0)
     {
     }
 
@@ -1605,6 +1608,7 @@ public:
     filter_type::type sort_key_filter_type;
     ::dsn::blob sort_key_filter_pattern;
     bool validate_partition_hash;
+    bool count_only;
 
     _get_scanner_request__isset __isset;
 
@@ -1629,6 +1633,8 @@ public:
     void __set_sort_key_filter_pattern(const ::dsn::blob &val);
 
     void __set_validate_partition_hash(const bool val);
+
+    void __set_count_only(const bool val);
 
     bool operator==(const get_scanner_request &rhs) const
     {
@@ -1656,6 +1662,10 @@ public:
             return false;
         else if (__isset.validate_partition_hash &&
                  !(validate_partition_hash == rhs.validate_partition_hash))
+            return false;
+        if (__isset.count_only != rhs.__isset.count_only)
+            return false;
+        else if (__isset.count_only && !(count_only == rhs.count_only))
             return false;
         return true;
     }
@@ -1949,7 +1959,8 @@ inline std::ostream &operator<<(std::ostream &out, const duplicate_response &obj
     obj.printTo(out);
     return out;
 }
-}
-} // namespace
+
+} // namespace apps
+} // namespace dsn
 
 #endif

@@ -221,7 +221,8 @@ private:
                               const ::dsn::blob &sort_key_filter_pattern,
                               uint32_t epoch_now,
                               bool no_value,
-                              bool request_validate_hash);
+                              bool request_validate_hash,
+                              bool count_only);
 
     range_iteration_state
     append_key_value_for_multi_get(std::vector<::dsn::apps::key_value> &kvs,
@@ -231,6 +232,10 @@ private:
                                    const ::dsn::blob &sort_key_filter_pattern,
                                    uint32_t epoch_now,
                                    bool no_value);
+
+    void create_kv_for_count_only(std::vector<::dsn::apps::key_value> &kvs,
+                                  rocksdb::Iterator *it,
+                                  int64_t count);
 
     // return true if the filter type is supported
     bool is_filter_type_supported(::dsn::apps::filter_type::type filter_type)

@@ -148,6 +148,7 @@ struct scan_data_context
     bool count_hash_key;
     std::string last_hash_key;
     std::atomic_long split_hash_key_count;
+    bool count_only;
     scan_data_context(scan_data_operator op_,
                       int split_id_,
                       int max_batch_count_,
@@ -179,7 +180,8 @@ struct scan_data_context
           top_count(top_count_),
           top_rows(top_count_),
           count_hash_key(count_hash_key_),
-          split_hash_key_count(0)
+          split_hash_key_count(0),
+          count_only(false)
     {
         // max_batch_count should > 1 because scan may be terminated
         // when split_request_count = 1
@@ -360,7 +362,11 @@ inline void scan_data_next(scan_data_context *context)
                             context->timeout_ms);
                         break;
                     case SCAN_COUNT:
-                        context->split_rows++;
+                        if (context->count_only) {
+                            context->split_rows += atoi(value.c_str());
+                        } else {
+                            context->split_rows++;
+                        }
                         if (context->stat_size && context->statistics) {
                             long hash_key_size = hash_key.size();
                             context->statistics->measureTime(
@@ -427,6 +433,9 @@ inline void scan_data_next(scan_data_context *context)
                 }
             } else if (ret == pegasus::PERR_SCAN_COMPLETE) {
                 context->split_completed.store(true);
+                if (context->count_only) {
+                    context->split_rows += atoi(value.c_str());
+                }
             } else {
                 if (!context->split_completed.exchange(true)) {
                     fprintf(stderr,

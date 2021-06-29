@@ -251,6 +251,7 @@ public:
         filter_type sort_key_filter_type;
         std::string sort_key_filter_pattern;
         bool no_value; // only fetch hash_key and sort_key, but not fetch value
+        bool count_only;
         scan_options()
             : timeout_ms(5000),
               batch_size(100),
@@ -258,7 +259,8 @@ public:
               stop_inclusive(false),
               hash_key_filter_type(FT_NO_FILTER),
               sort_key_filter_type(FT_NO_FILTER),
-              no_value(false)
+              no_value(false),
+              count_only(false)
         {
         }
         scan_options(const scan_options &o)
@@ -270,7 +272,8 @@ public:
               hash_key_filter_pattern(o.hash_key_filter_pattern),
               sort_key_filter_type(o.sort_key_filter_type),
               sort_key_filter_pattern(o.sort_key_filter_pattern),
-              no_value(o.no_value)
+              no_value(o.no_value),
+              count_only(o.count_only)
         {
         }
     };
