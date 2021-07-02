@@ -348,6 +348,22 @@ pegasus_server_impl::pegasus_server_impl(dsn::replication::replica *r)
     _db_opts.max_open_files = static_cast<int>(max_open_files);
     ddebug_replica("rocksdb_max_open_files = {}", _db_opts.max_open_files);
 
+    // Configurations of rocksdb info-log.
+    // By default, we keep 10 days of info-logs at maximum, combined with the total size limit
+    // of 10*32MB = 320MB.
+    _db_opts.keep_log_file_num = dsn_config_get_value_int64(
+        "pegasus.server", "rocksdb_keep_log_file_num", 10, "Maximal RocksDB log files to be kept.");
+    _db_opts.log_file_time_to_roll =
+        dsn_config_get_value_int64("pegasus.server",
+                                   "rocksdb_log_file_time_to_roll",
+                                   24 * 3600, /*86400*/
+                                   "Time for the info log file to roll (in seconds).");
+    _db_opts.max_log_file_size =
+        dsn_config_get_value_int64("pegasus.server",
+                                   "rocksdb_max_log_file_size",
+                                   32 * 1024 * 1024, /*33554432*/
+                                   "The maximal size of the info log file.");
+
     std::string index_type =
         dsn_config_get_value_string("pegasus.server",
                                     "rocksdb_index_type",
