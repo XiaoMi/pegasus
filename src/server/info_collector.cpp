@@ -187,8 +187,8 @@ info_collector::app_stat_counters *info_collector::get_app_counters(const std::s
     char counter_desc[1024];
 #define INIT_COUNTER(name)                                                                         \
     do {                                                                                           \
-        sprintf(counter_name, "app.stat." #name "#%s", app_name.c_str());                          \
-        sprintf(counter_desc, "statistic the " #name " of app %s", app_name.c_str());              \
+        snprintf(counter_name, 1024, "app.stat." #name "#%s", app_name.c_str());                   \
+        snprintf(counter_desc, 1024, "statistic the " #name " of app %s", app_name.c_str());       \
         counters->name.init_app_counter(                                                           \
             "app.pegasus", counter_name, COUNTER_TYPE_NUMBER, counter_desc);                       \
     } while (0)

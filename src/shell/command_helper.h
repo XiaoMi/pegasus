@@ -945,9 +945,9 @@ get_app_stat(shell_context *sc, const std::string &app_name, std::vector<row_dat
     std::vector<std::string> arguments;
     char tmp[256];
     if (app_name.empty()) {
-        sprintf(tmp, ".*@.*");
+        snprintf(tmp, 256, ".*@.*");
     } else {
-        sprintf(tmp, ".*@%d\\..*", app_info->app_id);
+        snprintf(tmp, 256, ".*@%d\\..*", app_info->app_id);
     }
     arguments.emplace_back(tmp);
     std::vector<std::pair<bool, std::string>> results =

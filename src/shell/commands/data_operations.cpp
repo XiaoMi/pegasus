@@ -2407,7 +2407,7 @@ bool count_data(command_executor *e, shell_context *sc, arguments args)
         char hash_key_count_str[100];
         hash_key_count_str[0] = '\0';
         if (diff_hash_key) {
-            sprintf(hash_key_count_str, " (%ld hash keys)", cur_total_hash_key_count);
+            snprintf(hash_key_count_str, 100, " (%ld hash keys)", cur_total_hash_key_count);
         }
         if (!stopped_by_wait_seconds && error_occurred.load()) {
             fprintf(stderr,

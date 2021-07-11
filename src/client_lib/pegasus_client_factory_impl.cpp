@@ -38,7 +38,7 @@ bool pegasus_client_factory_impl::initialize(const char *config_file)
             // use config file to run
             char exe[] = "client";
             char config[1024];
-            sprintf(config, "%s", config_file);
+            snprintf(config, 1024, "%s", config_file);
             char *argv[] = {exe, config};
             dsn_run(2, argv, false);
         }
